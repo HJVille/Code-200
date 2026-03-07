@@ -73,15 +73,9 @@ public class MotorPH_MS2_Grp9 {
     // ======================================================
     
     // Calculates Gross Salary
-    public static double processGrosssalary(double hourlyRate, double totalHoursworked){
+    public static double processGrossSalary(double hourlyRate, double totalHoursworked){
         double grossSalary = hourlyRate * totalHoursworked;
         return grossSalary;
-    }
-    
-    // Calculates Net Salary
-    public static double processNetsalary(double grossSalary, double totalDeductions){
-        double netSalary = grossSalary - totalDeductions;
-        return netSalary;
     }
     
     // ======================================================
@@ -183,7 +177,7 @@ public class MotorPH_MS2_Grp9 {
     // ======================================================
 
     // Computes withholding tax based on taxable income
-    public static double calculateWithholdingTax(double taxableIncome) {
+    public static double calculateWithHoldingTax(double taxableIncome) {
 
         if (taxableIncome <= 20832) {
             return 0;
@@ -223,7 +217,7 @@ public class MotorPH_MS2_Grp9 {
             double philhealthContribution,
             double pagibigContribution,
             double totalDeductions,
-            double withholdingTax,
+            double withHoldingTax,
             double netSalary) {
 
         String monthName = java.time.Month.of(month).name();
@@ -241,8 +235,7 @@ public class MotorPH_MS2_Grp9 {
 
         System.out.println("\nCutoff Date: " + monthName +
                 " 16 to " + monthName +
-                " " + java.time.YearMonth.of(2024, month).lengthOfMonth() +
-                " (Second payout includes all deductions)");
+                " " + java.time.YearMonth.of(2024, month).lengthOfMonth());
 
         System.out.println("Total Hours Worked: " + secondHours);
         System.out.println("Gross Salary: " + secondGross);
@@ -250,7 +243,7 @@ public class MotorPH_MS2_Grp9 {
         System.out.println("SSS: " + sssContribution);
         System.out.println("PhilHealth: " + philhealthContribution);
         System.out.println("Pag-IBIG: " + pagibigContribution);
-        System.out.println("Tax: " + withholdingTax);
+        System.out.println("Tax: " + withHoldingTax);
         System.out.println("Total Deductions: " + totalDeductions);
         System.out.println("Net Salary: " + netSalary);
         System.out.println("======================================");
@@ -276,54 +269,65 @@ public class MotorPH_MS2_Grp9 {
             for (Row attendanceRow : attendanceSheet) {
 
                 if (attendanceRow.getRowNum() == 0) 
-                    continue;
-
+                    continue; //skip column headers, to avoid reading text values
+                
+                //Gets employee ID from attendance
                 int attendanceEmpId =
                         (int) attendanceRow.getCell(0).getNumericCellValue();
-
+                
+                //Ensures to process only the selected employee's attendance
                 if (attendanceEmpId != employeeId) 
                     continue;
-
+                
+                //Gets the attendance date
                 java.time.LocalDate attendanceDate =
                         attendanceRow.getCell(3)
                                 .getLocalDateTimeCellValue()
                                 .toLocalDate();
-
+                
                 if (attendanceDate.getMonthValue() != month)
                     continue;
 
+                //Reads login time
                 LocalTime login =
                         attendanceRow.getCell(4)
                                 .getLocalDateTimeCellValue()
                                 .toLocalTime();
-
+                
+                //Reads login time
                 LocalTime logout =
                         attendanceRow.getCell(5)
                                 .getLocalDateTimeCellValue()
                                 .toLocalTime();
                 
-                //Considers 5 mins Grace Period
+                //Define Official Work Schedule
                 LocalTime officialStart = LocalTime.of(8, 0);
                 LocalTime graceLimit = LocalTime.of(8, 5);
                 LocalTime officialEnd = LocalTime.of(17, 0);
-
+                
+                //Apply Grace Period Rule
                 if (login.isBefore(officialStart) || !login.isAfter(graceLimit))
                     login = officialStart;
-
+                
+                //Limit Logout Time
                 if (logout.isAfter(officialEnd))
                     logout = officialEnd;
-
+                
+                //Skip Invalid Time Records
                 if (logout.isBefore(officialStart) || login.isAfter(officialEnd))
                     continue;
-
+                
+                //Calculate Daily Work Duration
                 Duration daily = Duration.between(login, logout);
-
+                
+                //Deduct Lunch Break
                 if (daily.compareTo(Duration.ofHours(1)) > 0)
                     daily = daily.minusHours(1);
                 
                 else
-                    daily = Duration.ZERO;
-
+                    daily = Duration.ZERO;//If work time is less than 1 hour → set to 0.
+                
+                //Assign Hours to Payroll Cutoff
                 if (attendanceDate.getDayOfMonth() <= 15)
                     firstCutoff = firstCutoff.plus(daily);
                 
@@ -331,28 +335,39 @@ public class MotorPH_MS2_Grp9 {
                     secondCutoff = secondCutoff.plus(daily);
             }
 
+            //Convert Duration to Hours
             double firstHours = firstCutoff.toMinutes() / 60.0;
             double secondHours = secondCutoff.toMinutes() / 60.0;
-
+            
+            //Skip Months Without Attendance
             if (firstHours == 0 && secondHours == 0)
                 continue;
 
-            double firstGross = processGrosssalary(hourlyRate, firstHours);
-            double secondGross = processGrosssalary(hourlyRate, secondHours);
+            double firstGross = processGrossSalary(hourlyRate, firstHours);
+            double secondGross = processGrossSalary(hourlyRate, secondHours);
 
             double totalGross = firstGross + secondGross;
 
             double sss = calculateSss(totalGross);
             double philhealth = calculatePhilhealth(totalGross);
             double pagibig = calculatePagibig(totalGross);
+            
+            // Government deductions
+            double govDeductions = sss + philhealth + pagibig;
 
-            double totalDeductions = sss + philhealth + pagibig;
-            double taxableIncome = totalGross - totalDeductions;
-            double tax = calculateWithholdingTax(taxableIncome);
+            // Compute taxable income
+            double taxableIncome = totalGross - govDeductions;
 
-            double netSalary = secondGross - (totalDeductions + tax);
+            // Compute withholding tax
+            double tax = calculateWithHoldingTax(taxableIncome);
 
-            printFormattedPayroll(
+            // Final deductions including tax
+            double totalDeductions = govDeductions + tax;
+
+            // Net salary deducted from second cutoff
+            double netSalary = secondGross - totalDeductions;
+
+            printFormattedPayroll( //Display Payroll
                     employeeId,
                     employeeName,
                     formattedBirthday,
@@ -388,6 +403,7 @@ public class MotorPH_MS2_Grp9 {
 
         System.out.print("Password: "); //Prompts the user to enter something
             String inputPassword = scanner.nextLine();
+            
         
         System.out.println("\n=== Log In as Employee ===");
         System.out.println("Username: " + inputUsername);
@@ -398,12 +414,19 @@ public class MotorPH_MS2_Grp9 {
         // ======================================================
            
             if (inputUsername.equals("employee") && inputPassword.equals("12345")) {
-
+            
+            
             System.out.println("\nLogin Successful!");
                 
-            System.out.print("Enter Employee ID: "); //Prompts the user to enter something
+            System.out.print("Enter Employee ID: ");
+
+            while (!scanner.hasNextInt()) {
+                System.out.println("Invalid input. Please enter a numeric Employee ID.");
+                scanner.next(); // Invalid input
+            }
+
             int inputId = scanner.nextInt();
-        
+
             boolean found = false;
 
             try {
@@ -491,8 +514,15 @@ public class MotorPH_MS2_Grp9 {
                 System.out.println("1. Process Payroll");
                 System.out.println("2. Exit");
                 System.out.print("Select option: ");
+                    
+                    // VALIDATE MAIN MENU INPUT
+                    while (!scanner.hasNextInt()) {
+                        System.out.println("Invalid input. Please enter the option number.");
+                        scanner.next();
+                    }
 
-                int inputOption1 = scanner.nextInt();
+                    int inputOption1 = scanner.nextInt();
+                    scanner.nextLine();
 
                 // ======================================================
                 // PROCESS PAYROLL
@@ -505,8 +535,17 @@ public class MotorPH_MS2_Grp9 {
                     System.out.println("2. All Employees");
                     System.out.println("3. Exit");
                     System.out.print("Select option: ");
+                    
+                int inputOption2;
 
-                    int inputOption2 = scanner.nextInt();
+                // VALIDATE SECOND MENU INPUT
+                while (!scanner.hasNextInt()) {
+                    System.out.println("Invalid input. Please enter the option number.");
+                    scanner.next();
+                }
+
+                inputOption2 = scanner.nextInt();
+                scanner.nextLine();
 
                     // =========================================
                     // ONE EMPLOYEE PAYROLL
@@ -515,7 +554,14 @@ public class MotorPH_MS2_Grp9 {
                     if (inputOption2 == 1) {
 
                         System.out.print("\nEnter Employee ID: ");
-                        int inputId = scanner.nextInt();
+                       
+                       // VALIDATE EMPLOYEE ID INPUT
+                       while (!scanner.hasNextInt()) {
+                       System.out.println("Invalid input. Please enter a numeric Employee ID.");
+                       scanner.next();
+                       }
+
+                         int inputId = scanner.nextInt();
 
                         boolean found = false;
 
@@ -601,15 +647,15 @@ public class MotorPH_MS2_Grp9 {
                         System.out.println("Invalid option.");
                     }
 
-                    }
+                }
 
-                    else if (inputOption1 == 2) {
+                else if (inputOption1 == 2) {
                         System.out.println("Exiting program...");
-                    }
+                }
 
-                    else {
-                        System.out.println("Invalid option.");
-                    }
+            else {
+                System.out.println("Invalid option.");
+                }
 
                     workbook.close();
 
