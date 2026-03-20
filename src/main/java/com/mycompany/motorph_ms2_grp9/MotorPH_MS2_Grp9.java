@@ -11,13 +11,14 @@ package com.mycompany.motorph_ms2_grp9;
 // ================================
 // File handling
 import java.io.FileInputStream; // Allows the program to Open and Read files 
+import java.io.IOException;
 
 // Date and formatting
-import java.util.Date; // Allows to store date values, (used for birthday)
-import java.text.SimpleDateFormat; // Allows to format date to readable format (deafault format - Wed Oct 21 00:00:00 PST 1987)
+import java.util.Date; // Used to store date values, (used for birthday)
+import java.text.SimpleDateFormat; // Formats date values into a readable string format
 
 // User input
-import java.util.Scanner; // Allows userinput from keyboard
+import java.util.Scanner; // Allows user input from the keyboard
 
 // =====================================
 // Java Time API (Work Hour Calculation)
@@ -46,6 +47,11 @@ import org.apache.poi.xssf.usermodel.XSSFWorkbook; // Specifically handles .xlsx
  * 2. Payroll Staff – process payroll for one or all employees
  *
  * Apache POI is used for reading Excel files.
+ * 
+ * DESIGN NOTE:
+ * This program uses procedural decomposition instead of OOP.
+ * Each method is responsible for a single task (calculation, formatting, 
+ * or processing), improving readability, maintainability, and testability.
  *
  * Author: Kim
  */
@@ -56,6 +62,7 @@ public class MotorPH_MS2_Grp9 {
     //              *** DEFINED METHODS ***
     // ======================================================
     
+  
     // ======================================================
     // CONSTANTS
     // ======================================================
@@ -63,6 +70,29 @@ public class MotorPH_MS2_Grp9 {
     private static final LocalTime GRACE_LIMIT = LocalTime.of(8, 5);
     private static final LocalTime OFFICIAL_END = LocalTime.of(17, 0);
     
+    // ================================
+    // GOVERNMENT CONSTANTS
+    // ================================
+    // All constant values are based on Philippine government contribution tables (SSS, PhilHealth, Pag-IBIG)
+    
+    // PhilHealth
+    private static final double PHILHEALTH_MIN_SALARY = 10000.0;
+    private static final double PHILHEALTH_MAX_SALARY = 60000.0;
+    private static final double PHILHEALTH_RATE = 0.03;
+
+    // Pag-IBIG
+    private static final double PAGIBIG_RATE_LOW = 0.01;
+    private static final double PAGIBIG_RATE_HIGH = 0.02;
+    private static final double PAGIBIG_MAX_CONTRIBUTION = 100.0;
+
+    // SSS
+    private static final int SSS_MIN_SALARY = 3250;
+    private static final int SSS_MAX_SALARY = 24750;
+    private static final double SSS_MIN_CONTRIBUTION = 135.0;
+    private static final double SSS_MAX_CONTRIBUTION = 1125.0;
+    private static final int SSS_STEP = 500;
+    private static final double SSS_INCREMENT = 22.5;
+
     // ======================================================
     // INPUT VALIDATION
     // ======================================================
@@ -96,7 +126,7 @@ public class MotorPH_MS2_Grp9 {
             FileInputStream file = new FileInputStream(filePath);
             return new XSSFWorkbook(file);
 
-        } catch (Exception e) {
+        } catch (IOException e) {
             System.out.println("Error loading Excel file.");
             return null;
             }
@@ -107,10 +137,26 @@ public class MotorPH_MS2_Grp9 {
         if (workbook == null) return null;
             return workbook.getSheetAt(index);
     }
-    
-    public static java.util.Map<Integer, java.util.List<Row>> groupAttendanceByEmployee(Sheet attendanceSheet) {
+   
+    // =============================================
+    // ORGANIZES ATTENDANCE RECORDS BY EMPLOYEE ID
+    // =============================================
+    /**
+    * PERFORMANCE IMPROVEMENT:
+    * Instead of scanning the entire attendance sheet multiple times
+    * (once per employee), this method processes the sheet ONLY ONCE
+    * and stores records in a Map.
+    *
+    * This allows O(1) access to each employee’s attendance records,
+    * significantly improving efficiency when processing payroll.
+     * @param attendanceSheet
+     * @return groupedData
+    */
+    public static java.util.Map<Integer, java.util.List<Row>> 
+        groupAttendanceByEmployee(Sheet attendanceSheet) {
 
-    java.util.Map<Integer, java.util.List<Row>> groupedData = new java.util.HashMap<>();
+    java.util.Map<Integer, java.util.List<Row>> groupedData 
+        = new java.util.HashMap<>();
 
     for (Row row : attendanceSheet) {
 
@@ -124,11 +170,95 @@ public class MotorPH_MS2_Grp9 {
 
     return groupedData;
 }
+    // ================================
+    // NEW MODULAR METHODS (ADD HERE)
+    // ================================
+
+    // BUSINESS RULE IMPLEMENTATION:
+    // 1. Employees who arrive on or before the grace period are treated as on-time.
+    // 2. Work hours are capped between official start (8:00 AM) and end (5:00 PM).
+    // 3. Invalid time entries (outside working hours) are ignored.
+    // 4. A fixed 1-hour lunch break is deducted from total working time.
+    public static Duration calculateDailyHours(LocalTime login, LocalTime logout) {
+
+                //Skip Invalid Time Records
+        if (login.isBefore(OFFICIAL_START) || !login.isAfter(GRACE_LIMIT)) {
+            login = OFFICIAL_START;
+        }
+
+        if (logout.isAfter(OFFICIAL_END)) {
+            logout = OFFICIAL_END;
+        }
+
+        if (logout.isBefore(OFFICIAL_START) || login.isAfter(OFFICIAL_END)) {
+            return Duration.ZERO;
+        }
+
+        Duration work = Duration.between(login, logout);
+
+        if (work.compareTo(Duration.ofHours(1)) > 0) {
+            return work.minusHours(1);
+        }
+
+        return Duration.ZERO;
+    }
+
+    public static void displayEmployeeDetails(int id, String name, String birthday) {
+        System.out.println("\n===== MotorPH Employee Details =====");
+        System.out.println("Employee Number : " + id);
+        System.out.println("Employee Name   : " + name);
+        System.out.println("Birthday        : " + birthday);
+    }
+
+    /**
+    * Computes all payroll deductions based on total monthly gross income.
+    *
+    * IMPORTANT:
+    * All government contributions (SSS, PhilHealth, Pag-IBIG) and tax
+    * are calculated using the combined gross salary from both cutoffs.
+    *
+    * This ensures compliance with payroll rules where deductions are
+    * based on total monthly earnings, not per cutoff.
+     * @param totalGross
+     * @return Deductions
+    */
+    public static double[] calculateDeductions(double totalGross) {
+
+        double sss = calculateSss(totalGross);
+        double philhealth = calculatePhilhealth(totalGross);
+        double pagibig = calculatePagibig(totalGross);
+
+        double totalGovernmentDeductions = sss + philhealth + pagibig;
+        double taxableIncome = totalGross - totalGovernmentDeductions;
+        double tax = calculateWithholdingTax(taxableIncome);
+
+        double totalDeductions = totalGovernmentDeductions + tax;
+
+        return new double[]{sss, philhealth, pagibig, tax, totalDeductions};
+    }
+
+    public static String[] getEmployeeDetails(Row row) {
+
+        String lastName = row.getCell(1).getStringCellValue();
+        String firstName = row.getCell(2).getStringCellValue();
+        String fullName = firstName + " " + lastName;
+
+        Date birthday = row.getCell(3).getDateCellValue();
+        SimpleDateFormat sdf = new SimpleDateFormat("MM/dd/yyyy");
+        String formattedBirthday = sdf.format(birthday);
+
+        double hourlyRate = row.getCell(18).getNumericCellValue();
+
+        // [0]=name, [1]=birthday, [2]=hourlyRate
+        return new String[]{fullName, formattedBirthday, String.valueOf(hourlyRate)};
+    }
+
     // ======================================================
     // CALCULATIONS
     // ======================================================
     
-    // Calculates Gross Salary
+    // Computes total earnings based on total hours worked and hourly rate
+    // This assumes no overtime multiplier is applied
     public static double calculateGrossSalary(double hourlyRate, double totalHoursWorked){
         return hourlyRate * totalHoursWorked;
     }
@@ -150,18 +280,21 @@ public class MotorPH_MS2_Grp9 {
      */
     public static double calculateSss(double totalGross) {
 
-        int start = 3250;
-        int end = 24750;
-        double minContribution = 135.00;
-        double maxContribution = 1125.00;
+        int start = SSS_MIN_SALARY;
+        int end = SSS_MAX_SALARY;
+        double minContribution = SSS_MIN_CONTRIBUTION;
+        double maxContribution = SSS_MAX_CONTRIBUTION;
         
-        //Used in do while loop
+        // The SSS contribution increases in fixed salary brackets.
+        // This loop simulates the contribution table by incrementing
+        // the salary range and contribution amount step-by-step
+        // until it matches the employee's salary bracket.
         int startRange = 3250;
         int endRange = 3750;
-        int compRangeAdder = 500;
+        int compRangeAdder = SSS_STEP;
         
         double finalContribution = 157.50;
-        double contAdder = 22.50;
+        double contAdder = SSS_INCREMENT;
         
         if (totalGross < start) {
             return minContribution;
@@ -201,23 +334,20 @@ public class MotorPH_MS2_Grp9 {
     */
     public static double calculatePhilhealth(double totalGross) {
 
-        double minSalary = 10000;
-        double maxSalary = 60000;
-        double rate = 0.03;
 
         double salaryBase;
 
-        if (totalGross < minSalary) {
-            salaryBase = minSalary;
-            
-        } else if (totalGross > maxSalary) {
-            salaryBase = maxSalary;
-            
+        if (totalGross < PHILHEALTH_MIN_SALARY) {
+            salaryBase = PHILHEALTH_MIN_SALARY;
+
+        } else if (totalGross > PHILHEALTH_MAX_SALARY) {
+            salaryBase = PHILHEALTH_MAX_SALARY;
+
         } else {
             salaryBase = totalGross;
         }
 
-        double totalPremium = salaryBase * rate;
+        double totalPremium = salaryBase * PHILHEALTH_RATE;
         return totalPremium / 2;
     }
 
@@ -238,20 +368,19 @@ public class MotorPH_MS2_Grp9 {
         double employeeRate;
 
         if (totalGross >= 1000 && totalGross <= 1500) {
-            employeeRate = 0.01;   // 1%
-            
+            employeeRate = PAGIBIG_RATE_LOW;
+
         } else if (totalGross > 1500) {
-            employeeRate = 0.02;   // 2%
-            
+            employeeRate = PAGIBIG_RATE_HIGH;
+
         } else {
-            return 0; // below 1000, no contribution
+            return 0;
         }
 
         double pagIbig = totalGross * employeeRate;
 
-        // Apply maximum cap of 100
-        if (pagIbig > 100) {
-            pagIbig = 100;
+        if (pagIbig > PAGIBIG_MAX_CONTRIBUTION) {
+            pagIbig = PAGIBIG_MAX_CONTRIBUTION;
         }
 
         return pagIbig;
@@ -385,9 +514,9 @@ public class MotorPH_MS2_Grp9 {
     *
     * @param employeeId the unique identifier of the employee
     * @param employeeName the full name of the employee
-    * @param formattedBirthday the employee's formatted birth date
+    * @param birthday
     * @param hourlyRate the employee's hourly pay rate
-    * @param attendanceSheet the Excel sheet containing attendance records
+    * @param employeeAttendance
     */
 public static void generatePayrollForEmployee(
         int employeeId,
@@ -397,28 +526,27 @@ public static void generatePayrollForEmployee(
         java.util.List<Row> employeeAttendance) {
 
     // ======================================================
-    // PAYROLL COMPUTATION ALGORITHM
+    // PAYROLL ALGORITHM OVERVIEW
     // ======================================================
-    // Algorithm Steps:
-    // 1. Iterate through each month of the year.
-    // 2. Read attendance records from the Excel attendance sheet.
-    // 3. Filter attendance records belonging to the selected employee.
-    // 4. Compute daily working hours based on login and logout times.
-    // 5. Apply company policies:
-    //      - Grace period for login
-    //      - Official working hours (8:00 AM to 5:00 PM)
-    //      - One-hour lunch deduction
-    // 6. Separate working hours into two payroll cutoffs (1–15, 16–end).
-    // 7. Compute gross salary for each cutoff.
-    // 8. Calculate government deductions (SSS, PhilHealth, Pag-IBIG).
-    // 9. Compute withholding tax based on taxable income.
-    // 10. Display the payroll breakdown for the employee.
+
+    // This method computes payroll by processing pre-grouped attendance records.
+    // For each month:
+    // 1. Total work hours are computed per cutoff (1–15, 16–end).
+    // 2. Gross pay is calculated separately for each cutoff.
+    // 3. Both cutoffs are combined to determine total monthly income.
+    // 4. Government deductions and tax are computed using total income.
+    // 5. All deductions are applied ONLY to the second cutoff salary,
+    //    based on project rules.
+    //
+    // This approach ensures both accuracy and compliance with payroll policies.
     
     for (int month = 1; month <= 12; month++) {
 
         Duration firstCutoff = Duration.ZERO;
         Duration secondCutoff = Duration.ZERO;
-
+        
+        // NOTE: We are NOT scanning the entire attendance sheet here.
+        // We are only iterating through PRE-GROUPED records for this employee.
         for (Row row : employeeAttendance) {
 
             if (row.getRowNum() == 0) 
@@ -436,36 +564,9 @@ public static void generatePayrollForEmployee(
 
             LocalTime logout =
                     row.getCell(5).getLocalDateTimeCellValue().toLocalTime();
-
-            // Apply grace period rule.
-            // If the employee logs in before 8:00 AM or within the
-            // allowed grace period (8:00–8:05 AM), the login time
-            // is adjusted to the official start time of 8:00 AM
-            if (login.isBefore(OFFICIAL_START) || !login.isAfter(GRACE_LIMIT)) {
-                login = OFFICIAL_START;
-            }
             
-            //Limit Logout Time
-            if (logout.isAfter(OFFICIAL_END)) {
-                logout = OFFICIAL_END;
-            }
-
-            //Skip Invalid Time Records
-            if (logout.isBefore(OFFICIAL_START) || login.isAfter(OFFICIAL_END)) {
-                continue;
-            }
-            
-            //Calculate Daily Work Duration
-            Duration daily = Duration.between(login, logout);
-
-            // Deduct the mandatory one-hour lunch break.
-            // If the employee worked more than one hour,
-            // subtract one hour from the computed work duration.
-            if (daily.compareTo(Duration.ofHours(1)) > 0) {
-                daily = daily.minusHours(1);
-            } else {
-                daily = Duration.ZERO;
-            }
+            // Compute adjusted working hours based on company policies
+            Duration daily = calculateDailyHours(login, logout);
             
             //Assign Hours to Payroll Cutoff
             if (attendanceDate.getDayOfMonth() <= 15) {
@@ -485,31 +586,26 @@ public static void generatePayrollForEmployee(
         double firstGross = calculateGrossSalary(hourlyRate, firstHours);
         double secondGross = calculateGrossSalary(hourlyRate, secondHours);
 
+
         // ======================================================
-        // DEDUCTION LOGIC (IMPORTANT)
+        // FINAL PAYROLL RULE IMPLEMENTATION
         // ======================================================
-        // Project requirement:
-        // 1. Combine FIRST and SECOND cutoff gross → totalGross
-        // 2. Compute ALL deductions based on totalGross
-        // 3. Apply ALL deductions ONLY to SECOND cutoff salary
         
+        // Project requirements:
+        // STEP 1: Combine BOTH cutoffs to get TOTAL monthly gross
         double totalGross = firstGross + secondGross;
         
-        // Government Contributions based on TOTAL gross
-        double sssContribution = calculateSss(totalGross);
-        double philhealthContribution = calculatePhilhealth(totalGross);
-        double pagibigContribution = calculatePagibig(totalGross);
+        // STEP 2: Compute ALL deductions based on TOTAL gross
+        // (SSS, PhilHealth, Pag-IBIG, Tax are based on monthly income)
+        double[] deductions = calculateDeductions(totalGross);
 
-        double govDeductions = sssContribution + philhealthContribution + pagibigContribution;
-        
-        // Taxable income is based on total gross minus contributions
-        double taxableIncome = totalGross - govDeductions;
-        
-        // Compute tax
-        double tax = calculateWithholdingTax(taxableIncome);
-
-        // Total deductions
-        double totalDeductions = govDeductions + tax;
+        // STEP 3: Apply ALL deductions ONLY to SECOND cutoff
+        // (Note: deductions are not split across cutoffs)
+        double sssContribution = deductions[0];
+        double philhealthContribution = deductions[1];
+        double pagibigContribution = deductions[2];
+        double tax = deductions[3];
+        double totalDeductions = deductions[4];
         
         // FINAL RULE: Deduct everything from SECOND cutoff only
         double netSalary = secondGross - totalDeductions;
@@ -569,65 +665,58 @@ public static void generatePayrollForEmployee(
 
             try {
 
-                Workbook workbook = loadWorkbook("CP1_Grp9_MotorPH_Employee Data.xlsx");
-                if (workbook == null) return;  // stop program if file failed
-
-                Sheet employeeSheet = getSheet(workbook, 0);
-                Sheet attendanceSheet = getSheet(workbook, 1);
-
-                // ==========================================
-                // GROUP ATTENDANCE ONCE
-                // ==========================================
-                java.util.Map<Integer, java.util.List<Row>> attendanceMap =
-                        groupAttendanceByEmployee(attendanceSheet);
-
-                DataFormatter formatter = new DataFormatter(); // To modify formats
-                boolean firstRow = true; // skip header properly
-
-                // =========================
-                // SEARCH EMPLOYEE RECORD
-                // =========================
-                
-                for (Row employeeRow : employeeSheet) {
-
-                    if (firstRow) {
-                        firstRow = false;
-                        continue;
+                try (Workbook workbook = loadWorkbook("CP1_Grp9_MotorPH_Employee Data.xlsx")) {
+                    if (workbook == null) return;  // stop program if file failed
+                    
+                    Sheet employeeSheet = getSheet(workbook, 0);
+                    Sheet attendanceSheet = getSheet(workbook, 1);
+                    
+                    // ==========================================
+                    // GROUP ATTENDANCE ONCE
+                    // ==========================================
+                    
+                    // Pre-process attendance data once and group by employee
+                    // This avoids repeated scanning of the Excel file
+                    java.util.Map<Integer, java.util.List<Row>> attendanceMap =
+                            groupAttendanceByEmployee(attendanceSheet);
+                    
+                    DataFormatter formatter = new DataFormatter(); // To modify formats
+                    boolean firstRow = true; // skip header properly
+                    
+                    // =========================
+                    // SEARCH EMPLOYEE RECORD
+                    // =========================
+                    
+                    for (Row employeeRow : employeeSheet) {
+                        
+                        if (firstRow) {
+                            firstRow = false;
+                            continue;
+                        }
+                        
+                        int id = Integer.parseInt(
+                                formatter.formatCellValue(employeeRow.getCell(0)));
+                        
+                        if (id == inputId) {
+                            
+                            String[] details = getEmployeeDetails(employeeRow);
+                            
+                            String employeeName = details[0];
+                            String formattedBirthday = details[1];
+                            
+                            displayEmployeeDetails(id, employeeName, formattedBirthday);
+                            
+                            found = true;
+                            break;
+                        }
                     }
-
-                    int id = Integer.parseInt(
-                            formatter.formatCellValue(employeeRow.getCell(0)));
-
-                    if (id == inputId) {
-
-                        String lastName = formatter.formatCellValue(employeeRow.getCell(1));
-                        String firstName = formatter.formatCellValue(employeeRow.getCell(2));
-                        String employeeName = firstName + " " + lastName;
-
-                        Cell birthdayCell = employeeRow.getCell(3);
-                        Date birthday = birthdayCell.getDateCellValue();
-
-                        SimpleDateFormat sdf = new SimpleDateFormat("MM/dd/yyyy");
-                        String formattedBirthday = sdf.format(birthday);
-
-                        System.out.println("\n===== MotorPH Employee Details =====");
-                        System.out.println("Employee Number : " + id);
-                        System.out.println("Employee Name   : " + employeeName);
-                        System.out.println("Birthday        : " + formattedBirthday);
-
-                        found = true;
-                        break;            
+                    
+                    if (!found) {
+                        System.out.println("Employee number does not exist");            
                     }
                 }
 
-                if (!found) {
-                    System.out.println("Employee number does not exist");
-                }
-
-                workbook.close();
-
-            } catch (Exception e) {
-                e.printStackTrace();
+            } catch (IOException | NumberFormatException e) {
             }
         }
   
@@ -642,165 +731,123 @@ public static void generatePayrollForEmployee(
 
             try {
 
-                Workbook workbook = 
-                        loadWorkbook("CP1_Grp9_MotorPH_Employee Data.xlsx");
-            
-                if (workbook == null) return;
-
-                Sheet employeeSheet = workbook.getSheetAt(0);
-                Sheet attendanceSheet = workbook.getSheetAt(1);
-                
-                java.util.Map<Integer, java.util.List<Row>> attendanceMap =
-                    groupAttendanceByEmployee(attendanceSheet);
-                // =========================
-                // MAIN MENU
-                // =========================
-                
-                System.out.println("\n=== MotorPH Payroll System ===");
-                System.out.println("1. Process Payroll");
-                System.out.println("2. Exit");
+                try (Workbook workbook = loadWorkbook
+                    ("CP1_Grp9_MotorPH_Employee Data.xlsx")) {
+                    if (workbook == null) return;
+                    
+                    Sheet employeeSheet = workbook.getSheetAt(0);
+                    Sheet attendanceSheet = workbook.getSheetAt(1);
+                    
+                    java.util.Map<Integer, java.util.List<Row>> attendanceMap =
+                            groupAttendanceByEmployee(attendanceSheet);
+                    // =========================
+                    // MAIN MENU
+                    // =========================
+                    
+                    System.out.println("\n=== MotorPH Payroll System ===");
+                    System.out.println("1. Process Payroll");
+                    System.out.println("2. Exit");
                     
                     // VALIDATE MAIN MENU INPUT
 
                     int mainMenuOption = getValidatedIntInput(scanner, "Enter Option: ");
                     scanner.nextLine();
-
-                // ======================================================
-                // PROCESS PAYROLL
-                // ======================================================
-                
-                if (mainMenuOption == 1) {
-
-                    System.out.println("\n=== Process Payroll ===");
-                    System.out.println("1. One Employee");
-                    System.out.println("2. All Employees");
-                    System.out.println("3. Exit");
                     
-                int payrollOption;
-
-                // VALIDATE SECOND MENU INPUT
-
-                payrollOption = getValidatedIntInput(scanner, "Enter option: ");
-                scanner.nextLine();
-
-                    // =========================================
-                    // ONE EMPLOYEE PAYROLL
-                    // =========================================
-                    
-                    if (payrollOption == 1) {
-                       
-                       // VALIDATE EMPLOYEE ID INPUT
-
-                        int inputId = getValidatedIntInput(scanner, "Enter Employee ID: ");
-
-                        boolean found = false;
-
-                        for (Row row : employeeSheet) {
-
-                            if (row.getRowNum() == 0) continue;
-
-                                int id = (int) row.getCell(0)
-                                        .getNumericCellValue();
-
-                            if (id == inputId) {
-
-                                String lastName = 
-                                        row.getCell(1).getStringCellValue();
-                                String firstName = 
-                                        row.getCell(2).getStringCellValue();
-                                String employeeName = 
-                                        firstName + " " + lastName;
-
-                                Date birthday = 
-                                        row.getCell(3).getDateCellValue();
-                                SimpleDateFormat sdf = new SimpleDateFormat("MM/dd/yyyy");
-                                String formattedBirthday = sdf.format(birthday);
-
-                                double hourlyRate = row.getCell(18).getNumericCellValue();
-
-                              java.util.List<Row> records = attendanceMap.get(id);
+                    // ======================================================
+                    // PROCESS PAYROLL
+                    // ======================================================
+                    switch (mainMenuOption) {
+                        case 1 -> {
+                            System.out.println("\n=== Process Payroll ===");
+                            System.out.println("1. One Employee");
+                            System.out.println("2. All Employees");
+                            System.out.println("3. Exit");
+                            int payrollOption;
+                            // VALIDATE SECOND MENU INPUT
                             
-                                if (records != null) {
-                                    generatePayrollForEmployee(
-                                            id,
-                                            employeeName,
-                                            formattedBirthday,
-                                            hourlyRate,
-                                            records
-                                    );
+                            payrollOption = getValidatedIntInput(scanner, "Enter option: ");
+                            scanner.nextLine();
+                            // =========================================
+                            // ONE EMPLOYEE PAYROLL
+                            // =========================================
+                            switch (payrollOption) {
+                                case 1 -> {
+                                    // VALIDATE EMPLOYEE ID INPUT
+                                    
+                                    int inputId = getValidatedIntInput(scanner, "Enter Employee ID: ");
+                                    boolean found = false;
+                                    for (Row row : employeeSheet) {
+                                        
+                                        if (row.getRowNum() == 0) continue;
+                                        
+                                        int id = (int) row.getCell(0)
+                                                .getNumericCellValue();
+                                        
+                                        if (id == inputId) {
+                                            
+                                            String[] details = getEmployeeDetails(row);
+                                            
+                                            String employeeName = details[0];
+                                            String formattedBirthday = details[1];
+                                            double hourlyRate = Double.parseDouble(details[2]);
+                                            
+                                            java.util.List<Row> records = attendanceMap.get(id);
+                                            
+                                            if (records != null) {
+                                                generatePayrollForEmployee(
+                                                        id,
+                                                        employeeName,
+                                                        formattedBirthday,
+                                                        hourlyRate,
+                                                        records
+                                                );
+                                            }
+                                            
+                                            found = true;
+                                            break;
+                                        }
+                                    }
+                                    if (!found) {
+                                        System.out.println("Employee ID Not Found.");
+                                    }
                                 }
-
-                                found = true;
-                                break;
+                                case 2 -> {
+                                    for (Row row : employeeSheet) {
+                                        
+                                        if (row.getRowNum() == 0) continue;
+                                        
+                                        int id = (int) row.getCell(0).getNumericCellValue();
+                                        
+                                        String[] details = getEmployeeDetails(row);
+                                        
+                                        String employeeName = details[0];
+                                        String formattedBirthday = details[1];
+                                        double hourlyRate = Double.parseDouble(details[2]);
+                                        
+                                        java.util.List<Row> records = attendanceMap.get(id);
+                                        
+                                        if (records != null) {
+                                            generatePayrollForEmployee(
+                                                    id,
+                                                    employeeName,
+                                                    formattedBirthday,
+                                                    hourlyRate,
+                                                    records
+                                            );
+                                        }
+                                    }
+                                }
+                                case 3 -> System.out.println("Exiting Process Payroll...");
+                                default -> System.out.println("Invalid option.");
                             }
                         }
-
-                        if (!found) {
-                            System.out.println("Employee ID Not Found.");
-                        }
+                        case 2 -> System.out.println("Exiting program...");
+                        default -> System.out.println("Invalid option.");
                     }
-
-                    // =========================================
-                    // ALL EMPLOYEES PAYROLL
-                    // =========================================
-                    
-                    else if (payrollOption == 2) {
-
-                        for (Row row : employeeSheet) {
-
-                            if (row.getRowNum() == 0) continue;
-
-                            int id = (int) row.getCell(0).getNumericCellValue();
-
-                            String lastName = row.getCell(1).getStringCellValue();
-                            String firstName = row.getCell(2).getStringCellValue();
-                            String employeeName = firstName + " " + lastName;
-
-                            Date birthday = row.getCell(3).getDateCellValue();
-                            SimpleDateFormat sdf = new SimpleDateFormat("MM/dd/yyyy");
-                            String formattedBirthday = sdf.format(birthday);
-
-                            double hourlyRate = 
-                                    row.getCell(18).getNumericCellValue();
-
-                            java.util.List<Row> records = attendanceMap.get(id);
-
-                            if (records != null) {
-                                generatePayrollForEmployee(
-                                        id,
-                                        employeeName,
-                                        formattedBirthday,
-                                        hourlyRate,
-                                        records
-                                );
-                            }
-                        }
-                    }
-                
-
-                    else if (payrollOption == 3) {
-                        System.out.println("Exiting Process Payroll...");
-                    }
-
-                    else {
-                        System.out.println("Invalid option.");
-                    }
-
                 }
-
-                else if (mainMenuOption == 2) {
-                        System.out.println("Exiting program...");
-                }
-
-            else {
-                System.out.println("Invalid option.");
-                }
-
-                    workbook.close();
 
                 } 
-                catch (Exception e) {
-                    e.printStackTrace();
+                catch (IOException | NumberFormatException e) {
                 }
                 
         }
