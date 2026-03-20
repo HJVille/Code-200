@@ -3,33 +3,33 @@
 to change this license
  */
 
-// This tells which folder structure the class belongs to
+// This tells which folder structure the class belongs to.
 package com.mycompany.motorph_ms2_grp9; 
 
 // ================================
 // Java Standard Libraries
 // ================================
 // File handling
-import java.io.FileInputStream; // Allows the program to Open and Read files 
+import java.io.FileInputStream; // Allows the program to Open and Read excel files.
 import java.io.IOException;
 
 // Date and formatting
-import java.util.Date; // Used to store date values, (used for birthday)
-import java.text.SimpleDateFormat; // Formats date values into a readable string format
+import java.util.Date; // Stores date value such as employee birthdays.
+import java.text.SimpleDateFormat; // Formats date values into a readable string format.
 
 // User input
-import java.util.Scanner; // Allows user input from the keyboard
+import java.util.Scanner; // Allows user input from the keyboard.
 
 // =====================================
 // Java Time API (Work Hour Calculation)
 // =====================================
-import java.time.LocalTime; //Stores time values (e.g., time in/out)
-import java.time.Duration; // Calculates difference between two time
+import java.time.LocalTime; //Stores time values such as log in and log out times.
+import java.time.Duration; // Calculates the difference between two times.
 
 // ====================================================
 // Third-Party Libraries (Apache POI - Excel Handling)
 // ====================================================
-import org.apache.poi.ss.usermodel.*; // Access Excel components (Workbook, Sheet, Row, Cell)
+import org.apache.poi.ss.usermodel.*; // Access Excel components (Workbook, Sheet, Row, Cell).
 import org.apache.poi.xssf.usermodel.XSSFWorkbook; // Specifically handles .xlsx files.
 
 /**
@@ -132,7 +132,7 @@ public class MotorPH_MS2_Grp9 {
             }
     }
     
-    // Selects which sheet from the workbook will be used
+    // Provides access to a specific worksheet needed for employee or attendance data
     public static Sheet getSheet(Workbook workbook, int index) {
         if (workbook == null) return null;
             return workbook.getSheetAt(index);
@@ -152,7 +152,7 @@ public class MotorPH_MS2_Grp9 {
      * @param attendanceSheet
      * @return groupedData
     */
-    public static java.util.Map<Integer, java.util.List<Row>> 
+    public static java.util.Map<Integer, java.util.List<Row>>
         groupAttendanceByEmployee(Sheet attendanceSheet) {
 
     java.util.Map<Integer, java.util.List<Row>> groupedData 
@@ -170,9 +170,6 @@ public class MotorPH_MS2_Grp9 {
 
     return groupedData;
 }
-    // ================================
-    // NEW MODULAR METHODS (ADD HERE)
-    // ================================
 
     // BUSINESS RULE IMPLEMENTATION:
     // 1. Employees who arrive on or before the grace period are treated as on-time.
@@ -181,7 +178,7 @@ public class MotorPH_MS2_Grp9 {
     // 4. A fixed 1-hour lunch break is deducted from total working time.
     public static Duration calculateDailyHours(LocalTime login, LocalTime logout) {
 
-                //Skip Invalid Time Records
+                // Skip invalid time records outside official working hours
         if (login.isBefore(OFFICIAL_START) || !login.isAfter(GRACE_LIMIT)) {
             login = OFFICIAL_START;
         }
@@ -219,8 +216,8 @@ public class MotorPH_MS2_Grp9 {
     *
     * This ensures compliance with payroll rules where deductions are
     * based on total monthly earnings, not per cutoff.
-     * @param totalGross
-     * @return Deductions
+     * @param totalGross the employee's combined monthly gross salary from both cutoffs
+     * @return Deductions an array containing SSS, PhilHealth, Pag-IBIG, tax, and total deductions
     */
     public static double[] calculateDeductions(double totalGross) {
 
@@ -249,6 +246,7 @@ public class MotorPH_MS2_Grp9 {
 
         double hourlyRate = row.getCell(18).getNumericCellValue();
 
+        // Returns employee name, formatted birthday, and hourly rate in a fixed order.
         // [0]=name, [1]=birthday, [2]=hourlyRate
         return new String[]{fullName, formattedBirthday, String.valueOf(hourlyRate)};
     }
@@ -257,8 +255,8 @@ public class MotorPH_MS2_Grp9 {
     // CALCULATIONS
     // ======================================================
     
-    // Computes total earnings based on total hours worked and hourly rate
-    // This assumes no overtime multiplier is applied
+    // This calculation is based on a fixed hourly pay structure and
+    // does not include overtime pay, bonuses, or allowances.
     public static double calculateGrossSalary(double hourlyRate, double totalHoursWorked){
         return hourlyRate * totalHoursWorked;
     }
@@ -291,10 +289,10 @@ public class MotorPH_MS2_Grp9 {
         // until it matches the employee's salary bracket.
         int startRange = 3250;
         int endRange = 3750;
-        int compRangeAdder = SSS_STEP;
+        int computeRangeAdder = SSS_STEP;
         
         double finalContribution = 157.50;
-        double contAdder = SSS_INCREMENT;
+        double contributionAdder = SSS_INCREMENT;
         
         if (totalGross < start) {
             return minContribution;
@@ -306,9 +304,9 @@ public class MotorPH_MS2_Grp9 {
             
             do {
                 
-                startRange = startRange + compRangeAdder;
-                endRange = endRange + compRangeAdder;
-                finalContribution = finalContribution + contAdder;
+                startRange = startRange + computeRangeAdder;
+                endRange = endRange + computeRangeAdder;
+                finalContribution = finalContribution + contributionAdder;
                 
             } while (totalGross > endRange);
         
@@ -377,13 +375,13 @@ public class MotorPH_MS2_Grp9 {
             return 0;
         }
 
-        double pagIbig = totalGross * employeeRate;
+        double pagIbigContribution = totalGross * employeeRate;
 
-        if (pagIbig > PAGIBIG_MAX_CONTRIBUTION) {
-            pagIbig = PAGIBIG_MAX_CONTRIBUTION;
+        if (pagIbigContribution > PAGIBIG_MAX_CONTRIBUTION) {
+            pagIbigContribution = PAGIBIG_MAX_CONTRIBUTION;
         }
 
-        return pagIbig;
+        return pagIbigContribution;
     }
         
     // ======================================================
@@ -514,11 +512,11 @@ public class MotorPH_MS2_Grp9 {
     *
     * @param employeeId the unique identifier of the employee
     * @param employeeName the full name of the employee
-    * @param birthday
+    * @param birthday the employee's formatted birth date
     * @param hourlyRate the employee's hourly pay rate
     * @param employeeAttendance
     */
-public static void generatePayrollForEmployee(
+    public static void generatePayrollForEmployee(
         int employeeId,
         String employeeName,
         String birthday,
@@ -552,13 +550,16 @@ public static void generatePayrollForEmployee(
             if (row.getRowNum() == 0) 
                 continue; //skip column headers, to avoid reading text values
             
-            //Gets the attendance date
+            // Retrieves the attendance date and converts it to LocalDate
+            // for use in payroll cutoff and monthly processing.
             java.time.LocalDate attendanceDate =
                     row.getCell(3).getLocalDateTimeCellValue().toLocalDate();
 
             if (attendanceDate.getMonthValue() != month) continue;
             
-            //Reads login time
+            // Extracts the employee's login time from the attendance record.
+            // The value is read from the Excel cell as a date-time and converted
+            // to LocalTime to enable accurate time-based calculations.
             LocalTime login =
                     row.getCell(4).getLocalDateTimeCellValue().toLocalTime();
 
@@ -640,10 +641,10 @@ public static void generatePayrollForEmployee(
         System.out.println("==================================");
         System.out.println("       WELCOME TO MOTORPH"         );
         System.out.println("==================================");
-        System.out.print("Username: "); //Prompts the user to enter something
+        System.out.print("Username: ");
             String inputUsername = scanner.nextLine();
 
-        System.out.print("Password: "); //Prompts the user to enter something
+        System.out.print("Password: ");
             String inputPassword = scanner.nextLine();
             
         
@@ -699,10 +700,10 @@ public static void generatePayrollForEmployee(
                         
                         if (id == inputId) {
                             
-                            String[] details = getEmployeeDetails(employeeRow);
+                            String[] employeeDetails = getEmployeeDetails(employeeRow);
                             
-                            String employeeName = details[0];
-                            String formattedBirthday = details[1];
+                            String employeeName = employeeDetails[0];
+                            String formattedBirthday = employeeDetails[1];
                             
                             displayEmployeeDetails(id, employeeName, formattedBirthday);
                             
@@ -717,6 +718,7 @@ public static void generatePayrollForEmployee(
                 }
 
             } catch (IOException | NumberFormatException e) {
+                System.out.println("An error occurred while processing data.");
             }
         }
   
@@ -763,7 +765,6 @@ public static void generatePayrollForEmployee(
                             System.out.println("2. All Employees");
                             System.out.println("3. Exit");
                             int payrollOption;
-                            // VALIDATE SECOND MENU INPUT
                             
                             payrollOption = getValidatedIntInput(scanner, "Enter option: ");
                             scanner.nextLine();
@@ -772,8 +773,6 @@ public static void generatePayrollForEmployee(
                             // =========================================
                             switch (payrollOption) {
                                 case 1 -> {
-                                    // VALIDATE EMPLOYEE ID INPUT
-                                    
                                     int inputId = getValidatedIntInput(scanner, "Enter Employee ID: ");
                                     boolean found = false;
                                     for (Row row : employeeSheet) {
@@ -848,6 +847,7 @@ public static void generatePayrollForEmployee(
 
                 } 
                 catch (IOException | NumberFormatException e) {
+                    System.out.println("An error occurred while processing data.");
                 }
                 
         }
