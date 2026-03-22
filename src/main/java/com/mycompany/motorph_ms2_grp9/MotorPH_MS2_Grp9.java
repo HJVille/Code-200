@@ -15,6 +15,7 @@ import java.io.IOException;
 
 // Date and formatting
 import java.util.Date; // Stores date value such as employee birthdays.
+import java.util.Locale;
 import java.text.SimpleDateFormat; // Formats date values into a readable string format.
 
 // User input
@@ -25,6 +26,7 @@ import java.util.Scanner; // Allows user input from the keyboard.
 // =====================================
 import java.time.LocalTime; //Stores time values such as log in and log out times.
 import java.time.Duration; // Calculates the difference between two times.
+import java.time.format.TextStyle;
 
 // ====================================================
 // Third-Party Libraries (Apache POI - Excel Handling)
@@ -69,6 +71,7 @@ public class MotorPH_MS2_Grp9 {
     private static final LocalTime OFFICIAL_START = LocalTime.of(8, 0);
     private static final LocalTime GRACE_LIMIT = LocalTime.of(8, 5);
     private static final LocalTime OFFICIAL_END = LocalTime.of(17, 0);
+    private static final String TEXT_ROW_FORMAT = "%-16s: %s%n";
     
     // ================================
     // GOVERNMENT CONSTANTS
@@ -202,9 +205,9 @@ public class MotorPH_MS2_Grp9 {
 
     public static void displayEmployeeDetails(int id, String name, String birthday) {
         System.out.println("\n===== MotorPH Employee Details =====");
-        System.out.println("Employee Number : " + id);
-        System.out.println("Employee Name   : " + name);
-        System.out.println("Birthday        : " + birthday);
+        System.out.printf(TEXT_ROW_FORMAT, "Employee Number", String.valueOf(id));
+        System.out.printf(TEXT_ROW_FORMAT, "Employee Name", name);
+        System.out.printf(TEXT_ROW_FORMAT, "Birthday", birthday);
     }
 
     /**
@@ -465,33 +468,34 @@ public class MotorPH_MS2_Grp9 {
             double withholdingTax,
             double netSalary) {
 
-        String monthName = java.time.Month.of(month).name();
+        String monthName = java.time.Month.of(month)
+                .getDisplayName(TextStyle.FULL, Locale.ENGLISH);
         int lastDayOfMonth = java.time.YearMonth.of(2024, month).lengthOfMonth();
 
         System.out.println("\n======================================");
-        System.out.println("Employee Number : " + id);
-        System.out.println("Employee Name   : " + employeeName);
-        System.out.println("Birthday        : " + birthday);
+        System.out.printf(TEXT_ROW_FORMAT, "Employee Number", String.valueOf(id));
+        System.out.printf(TEXT_ROW_FORMAT, "Employee Name", employeeName);
+        System.out.printf(TEXT_ROW_FORMAT, "Birthday", birthday);
 
-        System.out.println("\nCutoff Date   : " + monthName + " 1 - 15");
+        System.out.printf("%n%-16s: %s%n", "Cutoff Date", monthName + " 1 - 15");
         
-        System.out.println("Hours Worked    : " + firstHours);
-        System.out.println("Gross Salary    : " + firstGross);
-        System.out.println("Net Salary      : " + firstGross);
+        System.out.printf(TEXT_ROW_FORMAT, "Hours Worked", String.valueOf(firstHours));
+        System.out.printf(TEXT_ROW_FORMAT, "Gross Salary", String.valueOf(firstGross));
+        System.out.printf(TEXT_ROW_FORMAT, "Net Salary", String.valueOf(firstGross));
 
-        System.out.println("\nCutoff Date   : " + monthName + " 16 - " + lastDayOfMonth);
+        System.out.printf("%n%-16s: %s%n", "Cutoff Date", monthName + " 16 - " + lastDayOfMonth);
 
-        System.out.println("Hours Worked    : " + secondHours);
-        System.out.println("Gross Salary    : " + secondGross);
+        System.out.printf(TEXT_ROW_FORMAT, "Hours Worked", String.valueOf(secondHours));
+        System.out.printf(TEXT_ROW_FORMAT, "Gross Salary", String.valueOf(secondGross));
         
         System.out.println("\nDeductions");
-        System.out.println("SSS             : " + sssContribution);
-        System.out.println("PhilHealth      : " + philhealthContribution);
-        System.out.println("Pag-IBIG        : " + pagibigContribution);
-        System.out.println("Tax             : " + withholdingTax);
+        System.out.printf(TEXT_ROW_FORMAT, "SSS", String.valueOf(sssContribution));
+        System.out.printf(TEXT_ROW_FORMAT, "PhilHealth", String.valueOf(philhealthContribution));
+        System.out.printf(TEXT_ROW_FORMAT, "Pag-IBIG", String.valueOf(pagibigContribution));
+        System.out.printf(TEXT_ROW_FORMAT, "Tax", String.valueOf(withholdingTax));
         
-        System.out.println("Total Deduction : " + totalDeductions);
-        System.out.println("Net Salary      : " + netSalary);
+        System.out.printf(TEXT_ROW_FORMAT, "Total Deductions", String.valueOf(totalDeductions));
+        System.out.printf(TEXT_ROW_FORMAT, "Net Salary", String.valueOf(netSalary));
         System.out.println("======================================");
     }
 
@@ -648,7 +652,7 @@ public class MotorPH_MS2_Grp9 {
             String inputPassword = scanner.nextLine();
             
         
-        System.out.println("\n=== Log In as Employee ===");
+        System.out.println("\n=== Login ===");
         System.out.println("Username: " + inputUsername);
         System.out.println("Password: " + inputPassword);
           
@@ -659,10 +663,6 @@ public class MotorPH_MS2_Grp9 {
             if (inputUsername.equals("employee") && inputPassword.equals("12345")) {
             
             System.out.println("\nLogin Successful!");
-
-           int inputId = getValidatedIntInput(scanner, "Enter Employee ID: ");
-
-            boolean found = false;
 
             try {
 
@@ -680,40 +680,61 @@ public class MotorPH_MS2_Grp9 {
                     // This avoids repeated scanning of the Excel file
                     java.util.Map<Integer, java.util.List<Row>> attendanceMap =
                             groupAttendanceByEmployee(attendanceSheet);
-                    
-                    DataFormatter formatter = new DataFormatter(); // To modify formats
-                    boolean firstRow = true; // skip header properly
-                    
-                    // =========================
-                    // SEARCH EMPLOYEE RECORD
-                    // =========================
-                    
-                    for (Row employeeRow : employeeSheet) {
-                        
-                        if (firstRow) {
-                            firstRow = false;
+
+                    while (true) {
+                        System.out.println();
+                        System.out.println("1. Enter your employee number");
+                        System.out.println("2. Exit the program");
+
+                        int employeeOption = getValidatedIntInput(scanner, "Enter an option: ");
+
+                        if (employeeOption == 2) {
+                            System.out.println("Exiting the program...");
+                            return;
+                        }
+
+                        if (employeeOption != 1) {
+                            System.out.println("Invalid option.");
                             continue;
                         }
-                        
-                        int id = Integer.parseInt(
-                                formatter.formatCellValue(employeeRow.getCell(0)));
-                        
-                        if (id == inputId) {
-                            
-                            String[] employeeDetails = getEmployeeDetails(employeeRow);
-                            
-                            String employeeName = employeeDetails[0];
-                            String formattedBirthday = employeeDetails[1];
-                            
-                            displayEmployeeDetails(id, employeeName, formattedBirthday);
-                            
-                            found = true;
-                            break;
+
+                        int inputId = getValidatedIntInput(scanner, "Enter employee number: ");
+                        boolean found = false;
+
+                        DataFormatter formatter = new DataFormatter(); // To modify formats
+                        boolean firstRow = true; // skip header properly
+
+                        // =========================
+                        // SEARCH EMPLOYEE RECORD
+                        // =========================
+
+                        for (Row employeeRow : employeeSheet) {
+
+                            if (firstRow) {
+                                firstRow = false;
+                                continue;
+                            }
+
+                            int id = Integer.parseInt(
+                                    formatter.formatCellValue(employeeRow.getCell(0)));
+
+                            if (id == inputId) {
+
+                                String[] employeeDetails = getEmployeeDetails(employeeRow);
+
+                                String employeeName = employeeDetails[0];
+                                String formattedBirthday = employeeDetails[1];
+
+                                displayEmployeeDetails(id, employeeName, formattedBirthday);
+
+                                found = true;
+                                break;
+                            }
                         }
-                    }
-                    
-                    if (!found) {
-                        System.out.println("Employee number does not exist");            
+
+                        if (!found) {
+                            System.out.println("Employee number does not exist.");
+                        }
                     }
                 }
 
@@ -747,101 +768,111 @@ public class MotorPH_MS2_Grp9 {
                     // =========================
                     
                     System.out.println("\n=== MotorPH Payroll System ===");
-                    System.out.println("1. Process Payroll");
-                    System.out.println("2. Exit");
-                    
-                    // VALIDATE MAIN MENU INPUT
+                    while (true) {
+                        System.out.println();
+                        System.out.println("1. Process Payroll");
+                        System.out.println("2. Exit the program");
 
-                    int mainMenuOption = getValidatedIntInput(scanner, "Enter Option: ");
-                    scanner.nextLine();
-                    
-                    // ======================================================
-                    // PROCESS PAYROLL
-                    // ======================================================
-                    switch (mainMenuOption) {
-                        case 1 -> {
-                            System.out.println("\n=== Process Payroll ===");
-                            System.out.println("1. One Employee");
-                            System.out.println("2. All Employees");
-                            System.out.println("3. Exit");
-                            int payrollOption;
-                            
-                            payrollOption = getValidatedIntInput(scanner, "Enter option: ");
-                            scanner.nextLine();
-                            // =========================================
-                            // ONE EMPLOYEE PAYROLL
-                            // =========================================
-                            switch (payrollOption) {
-                                case 1 -> {
-                                    int inputId = getValidatedIntInput(scanner, "Enter Employee ID: ");
-                                    boolean found = false;
-                                    for (Row row : employeeSheet) {
-                                        
-                                        if (row.getRowNum() == 0) continue;
-                                        
-                                        int id = (int) row.getCell(0)
-                                                .getNumericCellValue();
-                                        
-                                        if (id == inputId) {
-                                            
-                                            String[] details = getEmployeeDetails(row);
-                                            
-                                            String employeeName = details[0];
-                                            String formattedBirthday = details[1];
-                                            double hourlyRate = Double.parseDouble(details[2]);
-                                            
-                                            java.util.List<Row> records = attendanceMap.get(id);
-                                            
-                                            if (records != null) {
-                                                generatePayrollForEmployee(
-                                                        id,
-                                                        employeeName,
-                                                        formattedBirthday,
-                                                        hourlyRate,
-                                                        records
-                                                );
+                        // VALIDATE MAIN MENU INPUT
+                        int mainMenuOption = getValidatedIntInput(scanner, "Enter an option: ");
+                        scanner.nextLine();
+
+                        // ======================================================
+                        // PROCESS PAYROLL
+                        // ======================================================
+                        switch (mainMenuOption) {
+                            case 1 -> {
+                                while (true) {
+                                    System.out.println("\n=== Process Payroll ===");
+                                    System.out.println("1. One Employee");
+                                    System.out.println("2. All Employees");
+                                    System.out.println("3. Exit the program");
+                                    int payrollOption;
+
+                                    payrollOption = getValidatedIntInput(scanner, "Enter an option: ");
+                                    scanner.nextLine();
+                                    // =========================================
+                                    // ONE EMPLOYEE PAYROLL
+                                    // =========================================
+                                    switch (payrollOption) {
+                                        case 1 -> {
+                                            int inputId = getValidatedIntInput(scanner, "Enter employee number: ");
+                                            boolean found = false;
+                                            for (Row row : employeeSheet) {
+
+                                                if (row.getRowNum() == 0) continue;
+
+                                                int id = (int) row.getCell(0)
+                                                        .getNumericCellValue();
+
+                                                if (id == inputId) {
+
+                                                    String[] details = getEmployeeDetails(row);
+
+                                                    String employeeName = details[0];
+                                                    String formattedBirthday = details[1];
+                                                    double hourlyRate = Double.parseDouble(details[2]);
+
+                                                    java.util.List<Row> records = attendanceMap.get(id);
+
+                                                    if (records != null) {
+                                                        generatePayrollForEmployee(
+                                                                id,
+                                                                employeeName,
+                                                                formattedBirthday,
+                                                                hourlyRate,
+                                                                records
+                                                        );
+                                                    }
+
+                                                    found = true;
+                                                    break;
+                                                }
                                             }
-                                            
-                                            found = true;
-                                            break;
+                                            if (!found) {
+                                                System.out.println("Employee number does not exist.");
+                                            }
                                         }
-                                    }
-                                    if (!found) {
-                                        System.out.println("Employee ID Not Found.");
+                                        case 2 -> {
+                                            for (Row row : employeeSheet) {
+
+                                                if (row.getRowNum() == 0) continue;
+
+                                                int id = (int) row.getCell(0).getNumericCellValue();
+
+                                                String[] details = getEmployeeDetails(row);
+
+                                                String employeeName = details[0];
+                                                String formattedBirthday = details[1];
+                                                double hourlyRate = Double.parseDouble(details[2]);
+
+                                                java.util.List<Row> records = attendanceMap.get(id);
+
+                                                if (records != null) {
+                                                    generatePayrollForEmployee(
+                                                            id,
+                                                            employeeName,
+                                                            formattedBirthday,
+                                                            hourlyRate,
+                                                            records
+                                                    );
+                                                }
+                                            }
+                                        }
+                                        case 3 -> {
+                                            System.out.println("Exiting the program...");
+                                            return;
+                                        }
+                                        default -> System.out.println("Invalid option.");
                                     }
                                 }
-                                case 2 -> {
-                                    for (Row row : employeeSheet) {
-                                        
-                                        if (row.getRowNum() == 0) continue;
-                                        
-                                        int id = (int) row.getCell(0).getNumericCellValue();
-                                        
-                                        String[] details = getEmployeeDetails(row);
-                                        
-                                        String employeeName = details[0];
-                                        String formattedBirthday = details[1];
-                                        double hourlyRate = Double.parseDouble(details[2]);
-                                        
-                                        java.util.List<Row> records = attendanceMap.get(id);
-                                        
-                                        if (records != null) {
-                                            generatePayrollForEmployee(
-                                                    id,
-                                                    employeeName,
-                                                    formattedBirthday,
-                                                    hourlyRate,
-                                                    records
-                                            );
-                                        }
-                                    }
-                                }
-                                case 3 -> System.out.println("Exiting Process Payroll...");
-                                default -> System.out.println("Invalid option.");
                             }
+                            case 2 -> {
+                                System.out.println("Exiting the program...");
+                                return;
+                            }
+                            default -> System.out.println("Invalid option.");
                         }
-                        case 2 -> System.out.println("Exiting program...");
-                        default -> System.out.println("Invalid option.");
                     }
                 }
 
@@ -853,6 +884,7 @@ public class MotorPH_MS2_Grp9 {
         }
         else {
             System.out.println("Invalid username or password.");
+            return;
         }
       }
 }
