@@ -16,6 +16,9 @@
 **Note:**  
 This repository reflects the collaboration of **Harty Joy Villegas** and **Kimberly Joy Goyena** in system development, testing, documentation, and repository preparation.
 
+**Project Plan:**  
+[MotorPH Project Plan](https://docs.google.com/spreadsheets/d/107AtUMdNt3sHL_d9LgfsAUAUdq5YrEG62ZbGcSEGtmE/edit?usp=sharing)
+
 ---
 
 # Program Details
